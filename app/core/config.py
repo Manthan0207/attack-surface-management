@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     max_page_size: int = 100
 
     dns_timeout_seconds: int = 5
+    discovery_worker_threads: int = 2
 
 
 settings = Settings()

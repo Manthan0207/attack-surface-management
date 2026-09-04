@@ -8,6 +8,11 @@ def get_domain_by_id(db: Session, domain_id: str) -> Domain | None:
     return db.get(Domain, domain_id)
 
 
+def get_domain_by_id_for_update(db: Session, domain_id: str) -> Domain | None:
+    """Load a domain row with FOR UPDATE to serialize scan creation."""
+    return db.scalar(select(Domain).where(Domain.id == domain_id).with_for_update())
+
+
 def get_domain_by_name(db: Session, name: str) -> Domain | None:
     return db.scalar(select(Domain).where(Domain.name == name))
 

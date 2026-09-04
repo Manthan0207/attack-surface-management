@@ -7,7 +7,9 @@ from app.core.deps import require_admin, require_analyst_or_admin, require_authe
 from app.models.domain import DomainStatus
 from app.models.user import User
 from app.schemas.domain import DomainCreateRequest, DomainListResponse, DomainResponse
+from app.schemas.scan import ScanListResponse, ScanTriggerResponse
 from app.services import domain as domain_service
+from app.services import scan as scan_service
 
 router = APIRouter(prefix="/domains", tags=["domains"])
 
@@ -22,7 +24,7 @@ def create_domain(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_analyst_or_admin),
 ) -> DomainResponse:
-    """Register a domain for monitoring (Admin, Analyst)"""
+    """Register a domain and automatically start a discovery scan."""
     return domain_service.create_domain(db, payload, current_user)
 
 
@@ -62,6 +64,33 @@ def delete_domain(
     db: Session = Depends(get_db),
     _admin: User = Depends(require_admin),
 ) -> Response:
-    """Permanently delete a domain (Admin only)."""
+    """Permanently delete a domain and cascaded scans/assets (Admin only)."""
     domain_service.delete_domain(db, domain_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/{domain_id}/scan",
+    response_model=ScanTriggerResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def trigger_scan(
+    domain_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> ScanTriggerResponse:
+    """Manually trigger a discovery scan for a domain."""
+    return scan_service.trigger_manual_scan(db, domain_id, current_user)
+
+
+@router.get("/{domain_id}/scans", response_model=ScanListResponse)
+def list_domain_scans(
+    domain_id: str,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=None, ge=1),
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_authenticated),
+) -> ScanListResponse:
+    """Return scan history for a domain."""
+    effective_limit = settings.default_page_size if limit is None else limit
+    return scan_service.list_scans(db, domain_id, page=page, limit=effective_limit)

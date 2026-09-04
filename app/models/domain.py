@@ -49,6 +49,7 @@ class Domain(Base):
     )
 
     creator = relationship("User", foreign_keys=[created_by])
+    scans = relationship("Scan", back_populates="domain", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<Domain id={self.id} name={self.name} status={self.status}>"

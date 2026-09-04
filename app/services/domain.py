@@ -11,10 +11,11 @@ from app.schemas.domain import (
     DomainListResponse,
     DomainResponse,
 )
+from app.services import scan as scan_service
 
 
 def create_domain(db: Session, payload: DomainCreateRequest, current_user: User) -> DomainResponse:
-    """Register a domain. Auto-scan is intentionally deferred to Day 3."""
+    """Register a domain and automatically enqueue a discovery scan."""
     name = normalize_and_validate_fqdn(payload.domain)
 
     if domain_repo.get_domain_by_name(db, name) is not None:
@@ -29,6 +30,13 @@ def create_domain(db: Session, payload: DomainCreateRequest, current_user: User)
         created_by=current_user.id,
         status=DomainStatus.PENDING,
     )
+    scan_service.enqueue_initial_scan(
+        db,
+        domain_id=domain.id,
+        triggered_by=current_user.id,
+    )
+    #read in case status changed 
+    domain = domain_repo.get_domain_by_id(db, domain.id) or domain
     return DomainResponse.model_validate(domain)
 
 

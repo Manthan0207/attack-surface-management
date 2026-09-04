@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+import logging
 
 from fastapi import FastAPI
 
+from app.api.assets import router as assets_router
 from app.api.auth import router as auth_router
 from app.api.domains import router as domains_router
 from app.api.health import router as health_router
@@ -10,6 +12,12 @@ from app.api.router import api_router
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.services.bootstrap import seed_admin_user
+from app.workers.discovery import recover_pending_jobs, start_workers, stop_workers
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
 
 
 @asynccontextmanager
@@ -20,7 +28,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         seed_admin_user(db)
     finally:
         db.close()
+
+    start_workers()
+    recover_pending_jobs()
     yield
+    stop_workers()
 
 
 def create_app() -> FastAPI:
@@ -32,10 +44,10 @@ def create_app() -> FastAPI:
         debug=settings.debug,
         lifespan=lifespan,
     )
-    # Spec paths: /health, /auth/*, /domains/* (not under a version prefix)
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(domains_router)
+    app.include_router(assets_router)
     app.include_router(api_router, prefix=settings.api_prefix)
     return app
 

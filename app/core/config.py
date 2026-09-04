@@ -15,11 +15,11 @@ class Settings(BaseSettings):
     app_env: str = "development"
     debug: bool = False
 
-    api_prefix: str = "/api/v1"
+    api_prefix: str = "/api"
 
-    database_url: str = "postgresql+psycopg://asm:asm@localhost:5432/asm"
+    database_url: str = "postgresql+psycopg://asm:asm@db:5432/asm"
 
-    jwt_secret_key: str = "usesstrongersecret"
+    jwt_secret_key: str = "useStrongerSecret"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60
 

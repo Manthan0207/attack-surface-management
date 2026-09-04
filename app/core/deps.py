@@ -62,3 +62,5 @@ def require_roles(*allowed_roles: UserRole) -> Callable[..., User]:
 
 
 require_admin = require_roles(UserRole.ADMIN)
+require_analyst_or_admin = require_roles(UserRole.ADMIN, UserRole.ANALYST)
+require_authenticated = require_roles(UserRole.ADMIN, UserRole.ANALYST, UserRole.VIEWER)

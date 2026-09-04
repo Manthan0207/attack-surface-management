@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 60
 
     admin_email: str = "admin@example.com"
-    admin_password: str = "Dummypassword"
+    admin_password: str = "ChangeMeAdmin123!"
     admin_full_name: str = "Platform Admin"
 
     default_page_size: int = 20

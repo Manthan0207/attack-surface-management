@@ -1,6 +1,6 @@
-from contextlib import asynccontextmanager
-from collections.abc import AsyncIterator
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
@@ -28,6 +28,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         seed_admin_user(db)
     finally:
         db.close()
+
+    if settings.testing:
+        yield
+        return
 
     start_workers()
     recover_pending_jobs()

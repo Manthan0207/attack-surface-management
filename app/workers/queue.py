@@ -9,12 +9,11 @@ from __future__ import annotations
 import logging
 import queue
 import threading
-from typing import Set
 
 logger = logging.getLogger(__name__)
 
 _job_queue: queue.Queue[str] = queue.Queue()
-_queued_ids: Set[str] = set()
+_queued_ids: set[str] = set()
 _queued_lock = threading.Lock()
 
 

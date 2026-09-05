@@ -33,5 +33,8 @@ class Settings(BaseSettings):
     dns_timeout_seconds: int = 5
     discovery_worker_threads: int = 2
 
+    # When true, skip background workers (used by pytest)
+    testing: bool = False
+
 
 settings = Settings()

@@ -1,19 +1,23 @@
 [tool.black]
-line-length = 88
+line-length = 100
 target-version = ["py312"]
 
 [tool.isort]
 profile = "black"
-line_length = 88
+line_length = 100
 src_paths = ["app"]
 
 [tool.ruff]
-line-length = 88
+line-length = 100
 target-version = "py312"
 src = ["app"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"app/tests/*" = ["E402"]
 
 [tool.pytest.ini_options]
 testpaths = ["app/tests"]

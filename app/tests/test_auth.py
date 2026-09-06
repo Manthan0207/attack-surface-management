@@ -22,6 +22,17 @@ def test_login_invalid_credentials(client):
     assert response.json()["detail"] == "Invalid credentials"
 
 
+def test_login_rate_limited(client):
+    payload = {"email": settings.admin_email, "password": "WrongPass1!"}
+    for _ in range(settings.login_rate_limit):
+        response = client.post("/auth/login", json=payload)
+        assert response.status_code == 401
+
+    blocked = client.post("/auth/login", json=payload)
+    assert blocked.status_code == 429
+    assert "too many" in blocked.json()["detail"].lower()
+
+
 def test_register_requires_admin(client, analyst_headers):
     response = client.post(
         "/auth/register",

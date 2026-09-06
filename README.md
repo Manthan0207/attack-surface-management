@@ -57,6 +57,10 @@ docker compose up --build -d
 docker compose exec -e TESTING=true -e DATABASE_URL=postgresql+psycopg://asm:asm@db:5432/asm_test api pytest
 ```
 
+### CI (GitHub Actions)
+
+On every push/PR to `main` (or `master`), `.github/workflows/test.yml` spins up Postgres 16, installs deps, and runs `pytest` with `TESTING=true` against `asm_test`.
+
 ---
 
 ## Architecture overview

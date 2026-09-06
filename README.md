@@ -1,11 +1,5 @@
 # ASM Asset Discovery Service
 
-SharkStriker backend take-home: **Attack Surface Management — Asset Discovery Service**.
-
-A FastAPI microservice that manages domains, runs passive DNS discovery (A / AAAA / NS / MX) in the background, and exposes results through a JWT-secured, RBAC-aware API.
-
----
-
 ## Requirements
 
 - Docker + Docker Compose

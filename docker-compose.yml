@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: asm
       POSTGRES_DB: asm
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -17,6 +17,18 @@ services:
       timeout: 5s
       retries: 10
       start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    container_name: asm-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   api:
     build: .
@@ -28,8 +40,9 @@ services:
       - path: .env
         required: false
     environment:
-      # Compose network hostname (overrides localhost from .env when present)
       DATABASE_URL: postgresql+psycopg://asm:asm@db:5432/asm
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
       APP_ENV: development
       DEBUG: "true"
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-to-a-long-random-secret}
@@ -38,6 +51,39 @@ services:
       ADMIN_FULL_NAME: ${ADMIN_FULL_NAME:-Platform Admin}
     depends_on:
       db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: .
+    container_name: asm-worker
+    restart: unless-stopped
+    entrypoint:
+      [
+        "celery",
+        "-A",
+        "app.workers.celery_app.celery",
+        "worker",
+        "--loglevel=INFO",
+      ]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://asm:asm@db:5432/asm
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      APP_ENV: development
+      DEBUG: "true"
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-to-a-long-random-secret}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-ChangeMeAdmin123!}
+      ADMIN_FULL_NAME: ${ADMIN_FULL_NAME:-Platform Admin}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
 volumes:

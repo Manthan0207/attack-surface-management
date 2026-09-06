@@ -12,7 +12,7 @@ from app.api.router import api_router
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.services.bootstrap import seed_admin_user
-from app.workers.discovery import recover_pending_jobs, start_workers, stop_workers
+from app.workers.discovery import recover_pending_jobs
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,10 +33,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         yield
         return
 
-    start_workers()
     recover_pending_jobs()
     yield
-    stop_workers()
 
 
 def create_app() -> FastAPI:

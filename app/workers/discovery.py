@@ -1,10 +1,11 @@
-"""Background discovery worker: thread pool consuming the in-memory scan queue."""
+"""DNS discovery processing (runs inside Celery workers or inline in tests)."""
 
 from __future__ import annotations
 
 import logging
-import threading
+from typing import Any
 
+import dns.exception
 from sqlalchemy import select
 
 from app.core.config import settings
@@ -15,12 +16,11 @@ from app.repositories import asset as asset_repo
 from app.repositories import domain as domain_repo
 from app.repositories import scan as scan_repo
 from app.workers.dns import resolve_domain_records
-from app.workers.queue import dequeue_scan, enqueue_scan, mark_task_done
+from app.workers.queue import enqueue_scan
 
 logger = logging.getLogger(__name__)
 
-_workers: list[threading.Thread] = []
-_stop_event = threading.Event()
+_RETRYABLE = (dns.exception.Timeout, dns.exception.DNSException)
 
 
 def _enqueue_next_pending_for_domain(db, domain_id: str) -> None:
@@ -34,7 +34,21 @@ def _enqueue_next_pending_for_domain(db, domain_id: str) -> None:
         enqueue_scan(next_id)
 
 
-def _process_scan(scan_id: str) -> None:
+def _fail_scan(db, scan: Scan, message: str) -> None:
+    scan_repo.mark_scan_failed(db, scan, message)
+    domain = domain_repo.get_domain_by_id(db, scan.domain_id)
+    if domain is not None:
+        scan_repo.set_domain_status(db, domain, DomainStatus.FAILED)
+    _enqueue_next_pending_for_domain(db, scan.domain_id)
+
+
+def _process_scan(scan_id: str, task: Any | None = None) -> None:
+    """Run discovery for one scan.
+
+    When ``task`` is a bound Celery task, transient DNS errors trigger retries
+    up to ``settings.scan_max_retries``. Without a task (pytest sync path),
+    failures are terminal immediately.
+    """
     db = SessionLocal()
     try:
         scan = scan_repo.get_scan_by_id(db, scan_id)
@@ -82,68 +96,34 @@ def _process_scan(scan_id: str) -> None:
                 domain.name if domain else scan.domain_id,
                 len(records),
             )
+            _enqueue_next_pending_for_domain(db, scan.domain_id)
+        except _RETRYABLE as exc:
+            message = str(exc) or exc.__class__.__name__
+            logger.warning("Scan %s hit retryable DNS error: %s", scan.id, message)
+            if task is not None and task.request.retries < settings.scan_max_retries:
+                # Schedule another attempt; keep scan RUNNING until success or final fail.
+                raise task.retry(
+                    exc=exc,
+                    countdown=settings.scan_retry_backoff_seconds,
+                    max_retries=settings.scan_max_retries,
+                )
+            logger.exception("Scan %s FAILED after retries", scan.id)
+            _fail_scan(db, scan, message)
         except Exception as exc:  # noqa: BLE001 — ensure scan never stuck RUNNING
             logger.exception("Scan %s FAILED", scan.id)
-            scan_repo.mark_scan_failed(db, scan, str(exc) or exc.__class__.__name__)
-            domain = domain_repo.get_domain_by_id(db, scan.domain_id)
-            if domain is not None:
-                scan_repo.set_domain_status(db, domain, DomainStatus.FAILED)
-        finally:
-            _enqueue_next_pending_for_domain(db, scan.domain_id)
+            _fail_scan(db, scan, str(exc) or exc.__class__.__name__)
     finally:
         db.close()
 
 
-def _worker_loop(worker_name: str) -> None:
-    logger.info("%s started", worker_name)
-    while not _stop_event.is_set():
-        scan_id = dequeue_scan(timeout=1.0)
-        if scan_id is None:
-            continue
-        try:
-            _process_scan(scan_id)
-        except Exception:  # noqa: BLE001
-            logger.exception("%s crashed while processing %s", worker_name, scan_id)
-        finally:
-            mark_task_done()
-    logger.info("%s stopped", worker_name)
-
-
-def start_workers() -> None:
-    """Start daemon worker threads (idempotent)."""
-    if _workers:
-        return
-    _stop_event.clear()
-    count = max(1, settings.discovery_worker_threads)
-    for index in range(count):
-        name = f"discovery-worker-{index + 1}"
-        thread = threading.Thread(
-            target=_worker_loop,
-            name=name,
-            args=(name,),
-            daemon=True,
-        )
-        thread.start()
-        _workers.append(thread)
-    logger.info("Started %s discovery worker thread(s)", count)
-
-
-def stop_workers() -> None:
-    """Signal workers to stop (used on app shutdown)."""
-    _stop_event.set()
-    for thread in list(_workers):
-        thread.join(timeout=2.0)
-    _workers.clear()
-
-
 def recover_pending_jobs() -> None:
-    """Rebuild the in-memory queue from DB after process start."""
+    """Re-queue PENDING / interrupted RUNNING scans into Celery after API start."""
     db = SessionLocal()
     try:
         scan_repo.reset_interrupted_scans(db)
         pending_ids = scan_repo.list_recoverable_scan_ids(db)
         for scan_id in pending_ids:
             enqueue_scan(scan_id)
-        logger.info("Recovered %s scan job(s) into in-memory queue", len(pending_ids))
+        logger.info("Recovered %s scan job(s) into Celery", len(pending_ids))
     finally:
         db.close()

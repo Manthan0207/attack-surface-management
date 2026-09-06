@@ -31,9 +31,14 @@ class Settings(BaseSettings):
     max_page_size: int = 100
 
     dns_timeout_seconds: int = 5
-    discovery_worker_threads: int = 2
 
-    # When true, skip background workers (used by pytest)
+    # Celery / Redis
+    celery_broker_url: str = "redis://redis:6379/0"
+    celery_result_backend: str = "redis://redis:6379/1"
+    scan_max_retries: int = 3
+    scan_retry_backoff_seconds: int = 2
+
+    # When true, skip recovering jobs into Celery (used by pytest)
     testing: bool = False
 
     # Login rate limit (in-memory, per client IP)

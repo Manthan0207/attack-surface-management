@@ -9,7 +9,6 @@ A FastAPI microservice that manages domains, runs passive DNS discovery (A / AAA
 ## Requirements
 
 - Docker + Docker Compose
-- (Optional for local tooling) Python 3.12+
 
 ---
 
@@ -44,15 +43,7 @@ Values come from `.env` / Compose (see `.env.example`):
 
 Tests use Postgres database `asm_test` (created automatically if missing) and mock DNS resolution. Discovery runs **inline** (Celery is not required for pytest).
 
-With Compose already running (DB on `localhost:5432`):
-
-```bash
-# from the host (Python 3.12 + deps installed)
-pip install -r requirements.txt
-pytest
-```
-
-Or inside the API container (rebuild first if you changed test files — no source bind-mount):
+Run tests **inside the API container** :
 
 ```bash
 docker compose up --build -d
@@ -140,4 +131,13 @@ See `.env.example` for a full template.
 5. **Login rate limit** — In-memory per-IP budget on `POST /auth/login` (429 when exceeded). Process-local; Redis later for multi-instance API.
 6. **DNS retries** — Celery retries timeouts / DNS errors up to `SCAN_MAX_RETRIES`, then marks the scan `FAILED`.
 
+---
+
+## Future improvements
+
+- **Revoke Celery jobs on domain delete** — Today delete cascades scans/assets in Postgres; a leftover Redis message is a no-op when the worker finds the scan gone. Next step: store `celery_task_id` on the scan and `revoke` active tasks on delete (with the existing “scan not found” guard as backup).
+- **RabbitMQ as Celery broker** — Redis was chosen for simple Compose setup. RabbitMQ is a stronger fit at higher volume: durable queues, routing, dead-letter exchanges, and clearer delivery semantics. Postgres would remain the source of truth for scan/asset state.
+- **Shared login rate limit** — Move the in-memory limiter to Redis so it works across multiple API replicas.
+- **Stronger scan claiming** — DB-level claim / partial unique index so only one worker can mark a scan `RUNNING` under concurrency.
+  
 ---

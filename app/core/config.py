@@ -36,5 +36,9 @@ class Settings(BaseSettings):
     # When true, skip background workers (used by pytest)
     testing: bool = False
 
+    # Login rate limit (in-memory, per client IP)
+    login_rate_limit: int = 5
+    login_rate_window_seconds: int = 60
+
 
 settings = Settings()

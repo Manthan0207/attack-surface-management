@@ -117,6 +117,8 @@ FastAPI (auth, domains, scans, assets, health)
 | `DNS_TIMEOUT_SECONDS` | Per-lookup DNS timeout |
 | `DISCOVERY_WORKER_THREADS` | Background worker count |
 | `TESTING` | Set `true` in pytest to skip workers |
+| `LOGIN_RATE_LIMIT` | Max `POST /auth/login` attempts per IP per window |
+| `LOGIN_RATE_WINDOW_SECONDS` | Sliding window for login rate limit |
 | `DEBUG` | FastAPI debug flag |
 
 See `.env.example` for a full template.
@@ -129,5 +131,6 @@ See `.env.example` for a full template.
 2. **Admin seed from env** — Idempotent startup seed avoids putting secrets in Alembic data migrations.
 3. **Scan concurrency** — API serializes manual triggers with `FOR UPDATE` and treats `PENDING` as in-flight so parallel `POST /scan` cannot both return 202. Worker side claim locking was deferred.
 4. **One scan resolves all four record types** — A single job queries A, AAAA, NS, and MX and stores every answer as its own asset row.
+5. **Login rate limit** — In-memory per-IP budget on `POST /auth/login` (429 when exceeded).
 
 ---

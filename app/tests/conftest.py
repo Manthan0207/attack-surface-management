@@ -48,6 +48,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import Base, SessionLocal, engine, get_db
+from app.core.rate_limit import reset_rate_limits
 from app.core.security import hash_password
 from app.main import create_app
 from app.models.asset import AssetType
@@ -66,10 +67,12 @@ def prepare_database() -> Generator[None, None, None]:
 @pytest.fixture(autouse=True)
 def clean_tables() -> Generator[None, None, None]:
     """Truncate all tables between tests for isolation."""
+    reset_rate_limits()
     yield
     with engine.begin() as conn:
         for table in reversed(Base.metadata.sorted_tables):
             conn.execute(table.delete())
+    reset_rate_limits()
 
 
 @pytest.fixture

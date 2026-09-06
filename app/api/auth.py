@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import require_admin
+from app.core.rate_limit import clear_client, enforce_login_rate_limit
 from app.models.user import User
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse
 from app.services import auth as auth_service
@@ -25,6 +26,13 @@ def register(
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def login(
+    payload: LoginRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> TokenResponse:
     """Authenticate a user and issue a Bearer access token."""
-    return auth_service.login_user(db, payload)
+    client_key = enforce_login_rate_limit(request)
+    token = auth_service.login_user(db, payload)
+    clear_client(client_key)
+    return token
